@@ -1,0 +1,8 @@
+{
+  "name": "Currency Tracker",
+  "description": "Track currency conversion rates",
+  "uuid": "mikhail.ramalho@gmail.com",
+  "shell-version": [
+    "42"
+  ]
+}
