@@ -20,32 +20,76 @@
 
 const GETTEXT_DOMAIN = 'my-indicator-extension';
 
-const { GObject, St } = imports.gi;
+const { GObject, St, Clutter } = imports.gi;
 
 const ExtensionUtils = imports.misc.extensionUtils;
+
+const Me = ExtensionUtils.getCurrentExtension();
+const Data = Me.imports.data;
+
 const Main = imports.ui.main;
 const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
 
+const GLib = imports.gi.GLib;
+
 const _ = ExtensionUtils.gettext;
 
 const Indicator = GObject.registerClass(
-class Indicator extends PanelMenu.Button {
-    _init() {
-        super._init(0.0, _('My Shiny Indicator'));
+    class Indicator extends PanelMenu.Button {
+        _init() {
+            super._init(0.0, `${Me.metadata.name} Indicator`, false);
+            this.mainRate = 0;
+            this.toCurrency = "BRL";
+            this.fromCurrency = "EUR";
 
-        this.add_child(new St.Icon({
-            icon_name: 'face-smile-symbolic',
-            style_class: 'system-status-icon',
-        }));
+            let mainLabel = new St.Label({
+                text: this.buildHeader(),
+                y_expand: true,
+                y_align: Clutter.ActorAlign.CENTER,
+                style_class: 'menu-item-text'
+            });
 
-        let item = new PopupMenu.PopupMenuItem(_('Show Notification'));
-        item.connect('activate', () => {
-            Main.notify(_('Whatʼs up, folks?'));
-        });
-        this.menu.addMenuItem(item);
+            this.add_child(mainLabel);
+
+            this._startTimer(mainLabel);
+        }
+
+        buildHeader() {
+            return "1 " + this.fromCurrency + " : " + this.mainRate + " " + this.toCurrency;
+        }
+
+        _startTimer(menuItem) {
+            this._refreshPrice(menuItem);
+
+            // randomDelay = Math.floor(Math.random() * (30000 - 6000 + 1) + 6000);
+            this.timeOutTag = GLib.timeout_add(1, 6000 * 10, async () => {
+                this._refreshPrice(menuItem);
+                return true;
+            });
+        }
+
+        async _refreshPrice(menuItem) {
+            try {
+                let page = Data.fetchPage(this.fromCurrency, this.toCurrency, 1);
+                this.mainRate = Data.getPriceFromPage(page);
+                log(Date.now() + ": " + this.mainRate)
+                menuItem.text = this.buildHeader();
+            } catch (e) {
+                log(e)
+            }
+        }
+
+        removeTimer() {
+            if (this.timeOutTag) GLib.Source.remove(this.timeOutTag);
+        }
+
+        destroy() {
+            this.removeTimer();
+            super.destroy();
+        }
     }
-});
+);
 
 class Extension {
     constructor(uuid) {
@@ -60,6 +104,7 @@ class Extension {
     }
 
     disable() {
+        this._indicator.timeOutTag.destroy();
         this._indicator.destroy();
         this._indicator = null;
     }
